@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Marathon Optimizer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #0F0F0F; color: #e5e5e5; font-family: 'Segoe UI', sans-serif; }
+        
+        .hero { background: linear-gradient(135deg, #1a0000 0%, #0F0F0F 100%); padding: 40px 0; border-bottom: 3px solid #E50914; }
+        
+        /* Analysis Metrics Cards */
+        .metric-card {
+            background: #1a1a1a; border: 1px solid #333; border-radius: 8px;
+            padding: 20px; text-align: center; height: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .metric-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: #aaa; margin-bottom: 10px; font-weight: bold;}
+        .metric-value { font-size: 2rem; font-weight: bold; color: #fff; }
+        .metric-sub { font-size: 0.8rem; color: #666; }
+
+        /* Chart Containers */
+        .chart-box {
+            background: #1a1a1a; border: 1px solid #333; border-radius: 8px;
+            padding: 15px; margin-bottom: 20px; height: 300px;
+        }
+        .chart-title { text-align: center; font-size: 1rem; color: #fff; margin-bottom: 15px; font-weight: 500; }
+
+        /* Movie Tickets */
+        .movie-ticket {
+            background: #1a1a1a; border: 1px solid #333; border-left: 5px solid #E50914;
+            border-radius: 6px; padding: 12px; margin-bottom: 12px; transition: 0.2s; display: flex; align-items: center;
+        }
+        .movie-ticket:hover { transform: translateX(5px); background: #252525; }
+        .ticket-icon { font-size: 24px; color: #555; margin-right: 15px; width: 40px; text-align: center; }
+
+        /* Summary Box */
+        .summary-box {
+            background: rgba(255, 255, 255, 0.05); border-left: 4px solid #ffc107;
+            padding: 25px; border-radius: 4px; margin-top: 30px;
+        }
+        .summary-title { color: #ffc107; font-size: 1.2rem; margin-bottom: 15px; font-weight: bold; }
+
+        /* Code Block */
+        pre { background: #111; color: #0f0; padding: 15px; border-radius: 5px; border: 1px solid #333; text-align: left; }
+        
+        .genre-badge { cursor: pointer; margin: 2px; }
+        .genre-badge:hover { background-color: #E50914 !important; color: white !important; }
+    </style>
+</head>
+<body>
+
+    <div class="hero text-center mb-4">
+        <h1 class="display-4 fw-bold text-white">🎬 Movie Marathon <span style="color:#E50914">Optimizer</span></h1>
+        <p class="text-white-50">get best combination of movies within a limited watch-time</p>
+    </div>
+
+    <div class="container pb-5">
+        
+        <div class="card bg-dark border-secondary mb-5">
+            <div class="card-body p-4">
+                <form method="POST" action="/" onsubmit="document.getElementById('loading').classList.remove('d-none')">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-5">
+                            <label class="form-label text-secondary">Genres</label>
+                            <input type="text" id="genreInput" name="genres" class="form-control bg-black text-white border-secondary" placeholder="Action Comedy">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-secondary">Time Limit (Hours)</label>
+                            <input type="number" step="any" name="hours" class="form-control bg-black text-white border-secondary" value="5" required>
+                        </div>
+                        <div class="col-md-2">
+                             <div class="form-check form-switch pb-2">
+                                <input class="form-check-input" type="checkbox" name="family" id="fam" checked>
+                                <label class="form-check-label text-white" for="fam">Family Mode</label>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-danger w-100 fw-bold">RUN 🚀</button>
+                        </div>
+                        <div class="col-12">
+                             <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="select_all_genres" id="selectAll" onchange="toggleGenres()">
+                                <label class="form-check-label text-white-50" for="selectAll">Select All Genres (Disables Input)</label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+                <div class="mt-3 pt-3 border-top border-secondary" id="genreCloud">
+                    <small class="text-muted">Quick Select:</small><br>
+                    {% for g in genres %}
+                        <span class="badge bg-dark border border-secondary genre-badge" onclick="addGenre('{{g|replace("'", "\\'")}}')">{{g}}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div id="loading" class="text-center d-none mb-5">
+            <div class="spinner-border text-danger"></div>
+            <p class="mt-2 text-white-50">Calculating optimal schedule...</p>
+        </div>
+
+        {% if results %}
+            {% if results.error %}
+                <div class="alert alert-warning text-center">{{ results.error }}</div>
+            {% else %}
+
+            <h4 class="mb-3 text-white border-bottom border-secondary pb-2">🎥 Optimized Movie Selections</h4>
+             <ul class="nav nav-tabs nav-fill mb-3 border-secondary" id="myTab" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active fw-bold text-warning bg-dark border-secondary" id="greedy-tab" data-bs-toggle="tab" data-bs-target="#greedy" type="button">
+                        🚀 Greedy Selection ({{ results.gr.count }})
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link fw-bold text-danger bg-dark border-secondary" id="bf-tab" data-bs-toggle="tab" data-bs-target="#bf" type="button">
+                        🐢 Brute Force ({{ results.bf.count }})
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content mb-5" id="myTabContent">
+                <div class="tab-pane fade show active" id="greedy">
+                    <div class="row">
+                        {% for m in results.gr.movies %}
+                        <div class="col-md-6">
+                            <div class="movie-ticket">
+                                <div class="ticket-icon">🎬</div>
+                                <div><h6 class="mb-0 text-white">{{ m.title }}</h6><small class="text-warning">★ {{ "%.1f"|format(m.score) }}</small> <span class="text-secondary">| {{ m.duration|int }}m</span></div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="bf">
+                    <div class="row">
+                        {% for m in results.bf.movies %}
+                        <div class="col-md-6">
+                            <div class="movie-ticket" style="border-left-color: #dc3545;">
+                                <div class="ticket-icon">💿</div>
+                                <div><h6 class="mb-0 text-white">{{ m.title }}</h6><small class="text-warning">★ {{ "%.1f"|format(m.score) }}</small> <span class="text-secondary">| {{ m.duration|int }}m</span></div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mb-4">
+                <h4 class="text-white">📊 Algorithm Performance Analysis</h4>
+            </div>
+            
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-3">
+                    <div class="metric-card">
+                        <div class="metric-title">Score Difference</div>
+                        <div class="metric-value text-info">{{ "%.2f"|format(analysis.score_diff) }}</div>
+                        <div class="metric-sub">points</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="metric-card">
+                        <div class="metric-title">Speed Improvement</div>
+                        <div class="metric-value text-warning">{{ "%.1f"|format(analysis.speedup) }}x</div>
+                        <div class="metric-sub">times faster (Greedy)</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="metric-card">
+                        <div class="metric-title text-danger">Brute Force Avg Score</div>
+                        <div class="metric-value text-white">{{ "%.2f"|format(results.bf.avg) }}</div>
+                        <div class="metric-sub">points / movie</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="metric-card">
+                        <div class="metric-title text-warning">Greedy Avg Score</div>
+                        <div class="metric-value text-white">{{ "%.2f"|format(results.gr.avg) }}</div>
+                        <div class="metric-sub">points / movie</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="chart-box">
+                        <div class="chart-title">Execution Time Comparison</div>
+                        <canvas id="timeChart"></canvas>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="chart-box">
+                        <div class="chart-title">Total Score Comparison</div>
+                        <canvas id="scoreChart"></canvas>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="chart-box">
+                        <div class="chart-title">Memory Usage Comparison</div>
+                        <canvas id="memoryChart"></canvas>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="chart-box">
+                        <div class="chart-title">Average Score Comparison</div>
+                        <canvas id="avgChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mb-3"><h5 class="text-white">Algorithm Complexity Analysis</h5></div>
+            <div class="card bg-dark border-secondary mb-4">
+                <div class="table-responsive">
+                    <table class="table table-dark table-striped mb-0 text-center align-middle">
+                        <thead>
+                            <tr class="text-white">
+                                <th class="text-start ps-4 bg-secondary">Metric</th>
+                                <th class="bg-danger text-white" style="background-color: #dc3545 !important;">Brute Force</th>
+                                <th class="bg-warning text-dark" style="background-color: #ffc107 !important;">Greedy</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td class="text-start ps-4 fw-bold">Time Complexity</td><td>O(2^n)</td><td>O(n log n)</td></tr>
+                            <tr><td class="text-start ps-4 fw-bold">Space Complexity</td><td>O(n)</td><td>O(n)</td></tr>
+                            <tr><td class="text-start ps-4">Execution Time</td><td>{{ "%.5f"|format(results.bf.time) }}s</td><td>{{ "%.5f"|format(results.gr.time) }}s</td></tr>
+                            <tr><td class="text-start ps-4">Memory Usage</td><td>{{ "%.3f"|format(results.bf.mem) }} MB</td><td>{{ "%.3f"|format(results.gr.mem) }} MB</td></tr>
+                            <tr><td class="text-start ps-4">Movies Selected</td><td>{{ results.bf.count }}</td><td>{{ results.gr.count }}</td></tr>
+                            <tr><td class="text-start ps-4">Total Score</td><td>{{ "%.2f"|format(results.bf.score) }}</td><td>{{ "%.2f"|format(results.gr.score) }}</td></tr>
+                            <tr><td class="text-start ps-4">Average Score</td><td>{{ "%.2f"|format(results.bf.avg) }}</td><td>{{ "%.2f"|format(results.gr.avg) }}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="summary-box">
+                <div class="summary-title">📝 Analysis Summary</div>
+                <p class="text-white mb-2">🎯 {{ analysis.optimal_text }}</p>
+                <p class="text-white mb-2">⚡ {{ analysis.tradeoff_text }}</p>
+                <p class="text-white mb-3">💡 {{ analysis.rec_text }}</p>
+                
+                <strong class="text-white d-block mb-2">Algorithm Characteristics:</strong>
+                <ul class="text-white-50 small mb-0">
+                    <li><strong>Brute Force (O(2^n)):</strong> Guarantees optimal solution, exponential time growth</li>
+                    <li><strong>Greedy (O(n log n)):</strong> Fast linearithmic time, near-optimal solutions</li>
+                </ul>
+            </div>
+
+            <div class="mt-5 pt-4 border-top border-secondary">
+                <h5 class="text-white mb-3 text-center">💻 Algorithm Implementation Details</h5>
+                
+                <ul class="nav nav-tabs border-secondary mb-3 justify-content-center" id="codeTabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active bg-dark text-danger border-secondary fw-bold" id="code-bf-tab" data-bs-toggle="tab" data-bs-target="#code-bf" type="button">Brute Force (Python)</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link bg-dark text-warning border-secondary fw-bold" id="code-gr-tab" data-bs-toggle="tab" data-bs-target="#code-gr" type="button">Greedy (Python)</button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content" id="codeTabContent">
+                    <div class="tab-pane fade show active" id="code-bf">
+                        <pre><code>{{ code.bf }}</code></pre>
+                    </div>
+                    <div class="tab-pane fade" id="code-gr">
+                         <pre><code>{{ code.greedy }}</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            {% endif %}
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        function toggleGenres() {
+            let chk = document.getElementById('selectAll');
+            let inp = document.getElementById('genreInput');
+            let cloud = document.getElementById('genreCloud');
+            if(chk.checked) { inp.value = ""; inp.placeholder = "All Genres Selected"; inp.disabled = true; cloud.style.opacity = "0.3"; cloud.style.pointerEvents = "none"; } 
+            else { inp.placeholder = "Action Comedy"; inp.disabled = false; cloud.style.opacity = "1"; cloud.style.pointerEvents = "auto"; }
+        }
+        function addGenre(g) {
+            let inp = document.getElementById('genreInput');
+            if(!inp.disabled && !inp.value.includes(g)) inp.value = inp.value ? inp.value + " " + g : g;
+        }
+    </script>
+    
+    {% if results %}
+    <script>
+        // Chart Config
+        Chart.defaults.color = '#aaa';
+        Chart.defaults.borderColor = 'rgba(255,255,255,0.1)';
+        const labels = ['Brute Force', 'Greedy'];
+        const colors = ['#dc3545', '#ffc107']; // Red & Yellow
+
+        const commonOpts = { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        };
+
+        new Chart(document.getElementById('timeChart'), {
+            type: 'bar',
+            data: { labels: labels, datasets: [{ label: 'Execution Time (s)', data: [{{ results.bf.time }}, {{ results.gr.time }}], backgroundColor: colors }] },
+            options: commonOpts
+        });
+
+        new Chart(document.getElementById('scoreChart'), {
+            type: 'bar',
+            data: { labels: labels, datasets: [{ label: 'Total Score', data: [{{ results.bf.score }}, {{ results.gr.score }}], backgroundColor: colors }] },
+            options: commonOpts
+        });
+
+        new Chart(document.getElementById('memoryChart'), {
+            type: 'bar',
+            data: { labels: labels, datasets: [{ label: 'Memory (MB)', data: [{{ results.bf.mem }}, {{ results.gr.mem }}], backgroundColor: colors }] },
+            options: commonOpts
+        });
+
+        new Chart(document.getElementById('avgChart'), {
+            type: 'bar',
+            data: { labels: labels, datasets: [{ label: 'Average Score', data: [{{ results.bf.avg }}, {{ results.gr.avg }}], backgroundColor: colors }] },
+            options: commonOpts
+        });
+    </script>
+    {% endif %}
+</body>
+</html>
