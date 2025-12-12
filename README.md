@@ -132,7 +132,10 @@ This project is released under the MIT License. See `LICENSE` if you add one.
 
 ## Contact
 
-GitHub: `Achmad-D-Fajar`
+GitHub: `Achmad-D-Fajar` & `MReyAkbar`
+
+## Video
+`https://youtu.be/L2gcIRvA1h0`
 
 ---
 
