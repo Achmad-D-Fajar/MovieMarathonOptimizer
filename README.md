@@ -118,7 +118,6 @@ MovieMarathonOptimizer/
 ├─ IMDb_Dataset.csv       # Preprocessed dataset used by the app
 ├─ templates/
 │  └─ index.html         # Frontend UI template
-├─ Spesifikasi Tugas Besar.txt  # Assignment specification (in Indonesian)
 └─ README.md
 ```
 
